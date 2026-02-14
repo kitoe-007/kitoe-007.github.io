@@ -50,8 +50,34 @@ body {
   overflow: hidden;
 }
 
+/* Фиксированные фоны hero и experience (вне scale-wrapper, не скроллятся) */
+.fixed-section-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+#fixed-hero-bg {
+  background-image: url("images/image-fon-2.jpeg");
+}
+
+#fixed-experience-bg {
+  background-image: url("images/image-fon-1.jpeg");
+}
+
+.fixed-section-bg.is-active {
+  z-index: 1;
+}
+
 /* Контейнер прокрутки: в нём масштабированный контент */
 #scale-viewport {
+  position: relative;
+  z-index: 2;
   width: 100vw;
   height: 100vh;
   overflow: auto;
@@ -333,20 +359,9 @@ body::before {
   margin: 0;
 }
 
-/* Фон hero - статичный мрамор */
-
+/* Фон hero — через фиксированный слой #fixed-hero-bg (вне scale-wrapper) */
 .hero-section {
-  background-image: url("images/image-fon-2.jpeg");
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
-}
-
-@media (max-width: 1024px) {
-  .hero-section,
-  .experience-section {
-    background-attachment: scroll;
-  }
+  background: transparent;
 }
 
 /* Остальные секции по дефолту - градиент */
@@ -491,13 +506,11 @@ body::before {
 
 /* Секция опыта - второй каменный фон со статичным эффектом (круг проходит поверх) */
 
+/* Фон experience — через фиксированный слой #fixed-experience-bg (вне scale-wrapper) */
 .experience-section {
   position: relative;
   z-index: 0;
-  background-image: url("images/image-fon-1.jpeg");
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
+  background: transparent;
 }
 
 /* HERO СЕТКА */

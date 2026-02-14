@@ -17,15 +17,21 @@
     return window.innerWidth <= MOBILE_BREAKPOINT;
   }
 
+  let lastScaleState = null;
   function applyScale() {
     if (!scaleHolder || !scaleWrapper) return;
-    if (isMobile()) {
+    const mobile = isMobile();
+    const scale = mobile ? null : getScale();
+    const stateKey = mobile ? "mobile" : `d-${scale}`;
+    if (lastScaleState === stateKey) return;
+    lastScaleState = stateKey;
+
+    if (mobile) {
       scaleWrapper.style.transform = "none";
       scaleWrapper.style.width = "100%";
       scaleHolder.style.width = "100%";
       scaleHolder.style.height = "auto";
     } else {
-      const scale = getScale();
       scaleWrapper.style.transform = `scale(${scale})`;
       scaleWrapper.style.width = "1920px";
       const footer = scaleWrapper.querySelector(".site-footer");
@@ -37,7 +43,14 @@
 
   function setupScale() {
     applyScale();
-    window.addEventListener("resize", applyScale);
+    let resizeRaf = null;
+    window.addEventListener("resize", () => {
+      if (resizeRaf) cancelAnimationFrame(resizeRaf);
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = null;
+        applyScale();
+      });
+    });
   }
 
   const parallaxMask1 = document.getElementById("parallax-mask-1");
@@ -75,8 +88,12 @@
     [parallaxMask10, layer2_speed, layer2_scale]
   ];
 
+  let lastParallaxScroll = -1;
   function updateParallaxElement() {
     const scrollTop = scaleViewport ? scaleViewport.scrollTop : window.scrollY;
+    if (scrollTop === lastParallaxScroll) return;
+    lastParallaxScroll = scrollTop;
+
     for (let i = 0; i < parallax_element.length; i++) {
       if (parallax_element[i][0]) {
         const y = scrollTop * parallax_element[i][1];
@@ -87,7 +104,15 @@
 
   function setupParallaxElement() {
     updateParallaxElement();
-    (scaleViewport || window).addEventListener("scroll", updateParallaxElement, { passive: true });
+    let parallaxRaf = null;
+    const onScroll = () => {
+      if (parallaxRaf) return;
+      parallaxRaf = requestAnimationFrame(() => {
+        parallaxRaf = null;
+        updateParallaxElement();
+      });
+    };
+    (scaleViewport || window).addEventListener("scroll", onScroll, { passive: true });
   }
 
   function setupReveal() {
@@ -111,7 +136,7 @@
     const io = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => {
-          if (e.isIntersecting) {
+          if (e.isIntersecting && !e.target.classList.contains("is-in")) {
             e.target.classList.add("is-in");
             io.unobserve(e.target);
           }
@@ -123,6 +148,39 @@
     targets.forEach((el) => io.observe(el));
   }
 
+  function setupFixedBackgroundSwitch() {
+    const heroSection = document.getElementById("hero");
+    const experienceSection = document.getElementById("experience");
+    const fixedHeroBg = document.getElementById("fixed-hero-bg");
+    const fixedExperienceBg = document.getElementById("fixed-experience-bg");
+    if (!heroSection || !experienceSection || !fixedHeroBg || !fixedExperienceBg) return;
+
+    let rafId = null;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          let useHero = false, useExp = false;
+          entries.forEach((e) => {
+            if (e.target.id === "hero" && e.isIntersecting) useHero = true;
+            if (e.target.id === "experience" && e.isIntersecting) useExp = true;
+          });
+          if (useHero && !fixedHeroBg.classList.contains("is-active")) {
+            fixedHeroBg.classList.add("is-active");
+            fixedExperienceBg.classList.remove("is-active");
+          } else if (useExp && !fixedExperienceBg.classList.contains("is-active")) {
+            fixedExperienceBg.classList.add("is-active");
+            fixedHeroBg.classList.remove("is-active");
+          }
+        });
+      },
+      { threshold: 0, rootMargin: "20% 0px 20% 0px", root: scaleViewport || null }
+    );
+    io.observe(heroSection);
+    io.observe(experienceSection);
+  }
+
   function setupAnchorScroll() {
     if (!scaleViewport) return;
     document.addEventListener("click", (e) => {
@@ -130,18 +188,20 @@
       if (!a || !a.hash) return;
       const id = a.getAttribute("href").slice(1);
       const target = document.getElementById(id);
-      if (target) {
-        e.preventDefault();
-        const targetTop = target.getBoundingClientRect().top;
-        const viewportTop = scaleViewport.getBoundingClientRect().top;
-        scaleViewport.scrollTop = Math.max(0, scaleViewport.scrollTop + targetTop - viewportTop - 20);
-      }
+      if (!target) return;
+      e.preventDefault();
+      const targetTop = target.getBoundingClientRect().top;
+      const viewportTop = scaleViewport.getBoundingClientRect().top;
+      const newScroll = Math.max(0, scaleViewport.scrollTop + targetTop - viewportTop - 20);
+      if (Math.abs(scaleViewport.scrollTop - newScroll) < 5) return;
+      scaleViewport.scrollTop = newScroll;
     });
   }
 
   function init() {
     setupScale();
     setupParallaxElement();
+    setupFixedBackgroundSwitch();
     setupReveal();
     setupAnchorScroll();
     requestAnimationFrame(applyScale);
@@ -158,8 +218,17 @@
 const slowContainer = document.getElementById("slowContainer");
 if (slowContainer) {
   let scrollSpeed = 0.3;
+  let wheelRaf = null;
+  let pendingWheelDelta = 0;
   slowContainer.addEventListener("wheel", (e) => {
     e.preventDefault();
-    slowContainer.scrollTop += e.deltaY * scrollSpeed;
+    pendingWheelDelta += e.deltaY * scrollSpeed;
+    if (wheelRaf) return;
+    wheelRaf = requestAnimationFrame(() => {
+      wheelRaf = null;
+      if (Math.abs(pendingWheelDelta) < 0.5) { pendingWheelDelta = 0; return; }
+      slowContainer.scrollTop += pendingWheelDelta;
+      pendingWheelDelta = 0;
+    });
   }, { passive: false });
 }
